@@ -1,0 +1,840 @@
+## =========================================================================
+## EEG Statistical Analysis
+## =========================================================================
+
+
+## -------------------------------------------------------------------------------------------------
+## Initial Setup
+## -------------------------------------------------------------------------------------------------
+options(warn = -1)
+
+## -------------------------------------------------------------------------------------------------
+## Load Data
+## -------------------------------------------------------------------------------------------------
+time_path <- "datasets/time_1673241270748 (1)-549e0952-120a-462f-a862-a7086235e7d0.csv"
+x_path    <- "datasets/X_1673241366257 (1)-c6b83bdb-2fb5-4944-b87e-3203e2222d2f.csv"    
+y_path    <- "datasets/y_1673241374123 (1)-e8e307ca-a0d8-4cc7-b964-1f80a54a54bc.csv"      
+
+image_dir <- "images"
+if (!dir.exists(image_dir)) dir.create(image_dir)
+
+df1 <- read.csv(time_path, header = FALSE)
+colnames(df1) <- c("time")
+head(df1)
+
+df2 <- read.csv(x_path, header = FALSE)
+colnames(df2) <- c("X1", "X2", "X3", "X4")
+head(df2)
+
+df3 <- read.csv(y_path, header = FALSE)
+colnames(df3) <- c("y")
+head(df3)
+
+dim(df1)
+dim(df2)
+dim(df3)
+
+## -------------------------------------------------------------------------------------------------
+## Data Consolidation and Initial Inspection
+## -------------------------------------------------------------------------------------------------
+df <- cbind(df1, df2, df3)
+head(df)
+dim(df)
+
+## -------------------------------------------------------------------------------------------------
+## Data Quality Checks
+## -------------------------------------------------------------------------------------------------
+colSums(is.na(df))
+sum(duplicated(df))     
+
+write.csv(df, "final_df.csv", row.names = FALSE)
+cat("DataFrame exported successfully to final_df.csv\n")
+
+## ===========================================================================
+## Task 1: Preliminary data analysis
+## ===========================================================================
+## ---------------------------------------------------------------------------------------------
+## 1.1 Time series plots (of input and output EEG signals)
+## ---------------------------------------------------------------------------------------------
+png(file.path(image_dir, "overall_eeg_signals_vs_time.png"), 
+    width = 10, 
+    height = 5, 
+    units = "in", 
+    res = 300)
+
+plot(df$time, df$X1, type = "l", col = "red", lwd = 1.5,
+     xlab = "Time", ylab = "Input EEG signals (X)",
+     main = "Time series comparison of X with time",
+     ylim = range(df[, c("X1", "X2", "X3", "X4")]),
+     cex.lab = 1.1, cex.main = 1.2, cex.axis = 1.0)
+
+lines(df$time, df$X2, col = "#00008B", lwd = 1.5)
+lines(df$time, df$X3, col = "#FF8C00", lwd = 1.5)
+lines(df$time, df$X4, col = "green", lwd = 1.5)
+
+abline(h = 0, col = "black", lwd = 1)
+grid(lty = "dotted", col = "gray70", lwd = 0.8)
+
+legend("topright", 
+       legend = c("X1", "X2", "X3", "X4"),
+       col = c("red", "#00008B", "#FF8C00", "green"), 
+       lty = 1, 
+       lwd = 1.5, 
+       cex = 0.9,
+       bg = "white")
+
+dev.off()
+
+## ---------------------------------------------------------------------------------------------
+## 1.2 Distribution for each EEG signal - individual line plots
+## ---------------------------------------------------------------------------------------------
+x_columns <- c("X1", "X2", "X3", "X4")
+colors4   <- c("red", "#00008B", "#FF8C00", "green")
+
+png(file.path(image_dir, "individual_eeg_signals_vs_time.png"), width = 2000, height = 1000, res = 100)
+par(mfrow = c(4, 1), oma = c(4, 2, 4, 2), mar = c(2, 5, 1, 1))
+for (i in seq_along(x_columns)) {
+  col <- x_columns[i]
+  plot(df$time, df[[col]], type = "o", pch = 16, col = colors4[i],
+       xlab = "", ylab = col, cex.lab = 1.6, cex.axis = 1.4)
+  grid(lty = "dotted")
+  abline(h = 0, col = "black", lwd = 1.5)
+  if (i == length(x_columns)) title(xlab = "Time", cex.lab = 1.8, line = 3)
+}
+mtext("Time series comparison of X with time", outer = TRUE, cex = 1.6)
+dev.off()
+par(mfrow = c(1, 1))
+
+## ---------------------------------------------------------------------------------------------
+## Visualizing Output EEG Signal (y) over Time
+## ---------------------------------------------------------------------------------------------
+png(file.path(image_dir, "output_eeg_signal_vs_time.png"), width = 2000, height = 800, res = 100)
+plot(df$time, df$y, type = "o", pch = 16, lwd = 3,
+     xlab = "Time", ylab = "Output EEG signal (y)",
+     main = "Time series analysis of y with time",
+     cex.lab = 1.8, cex.main = 2.0, cex.axis = 1.5)
+grid(lty = "dotted", lwd = 1.5)
+abline(h = 0, col = "black", lwd = 1.5)
+dev.off()
+
+## ---------------------------------------------------------------------------------------------
+## Distribution of Input EEG Signals (X1-X4): histogram + density + rug
+## ---------------------------------------------------------------------------------------------
+png(file.path(image_dir, "distribution_input_eeg_signals.png"), width = 1500, height = 1000, res = 100)
+par(mfrow = c(2, 2))
+for (col in x_columns) {
+  vals <- df[[col]]
+  hist(vals, breaks = 30, freq = FALSE, col = "blue", border = "black",
+       main = paste("Distribution of", col), xlab = col, ylab = "Frequency")
+  lines(density(vals), col = "black", lwd = 2)
+  rug(vals, col = "black")
+  grid(lty = "dotted")
+}
+mtext("Distribution of input EEG Signals (X1-X4)", outer = TRUE, line = -1.5, cex = 1.3)
+dev.off()
+par(mfrow = c(1, 1))
+
+## ---------------------------------------------------------------------------------------------
+## Combined Density Distribution of EEG Signals (X1-X4)
+## ---------------------------------------------------------------------------------------------
+df_melted <- data.frame(
+  Signal = rep(x_columns, each = nrow(df)),
+  Value  = c(df$X1, df$X2, df$X3, df$X4)
+)
+
+unique_colors <- c("#1F77B4", "#11A5AA", "#6AB187", "#4A6984")
+
+png(file.path(image_dir, "unique_eeg_distribution.png"), width = 1100, height = 650, res = 100)
+dens_list <- lapply(x_columns, function(s) density(df_melted$Value[df_melted$Signal == s]))
+x_range <- range(sapply(dens_list, function(d) range(d$x)))
+y_range <- range(sapply(dens_list, function(d) range(d$y)))
+plot(NULL, xlim = x_range, ylim = y_range,
+     xlab = "Input EEG signals (X)", ylab = "Density",
+     main = "EEG Signal Density Distribution")
+grid(lty = "dashed", col = "#BDC3C7")
+for (i in seq_along(x_columns)) {
+  polygon(dens_list[[i]], col = adjustcolor(unique_colors[i], alpha.f = 0.4),
+          border = unique_colors[i], lwd = 2)
+}
+rug(df_melted$Value, col = adjustcolor("#2C3E50", alpha.f = 0.4))
+legend("topright", legend = x_columns, fill = unique_colors, title = "EEG Inputs", bty = "o")
+dev.off()
+
+## ---------------------------------------------------------------------------------------------
+## Distribution of Output EEG Signal (y)
+## ---------------------------------------------------------------------------------------------
+png(file.path(image_dir, "distribution_output_eeg_signal.png"), width = 800, height = 600, res = 100)
+hist(df$y, freq = FALSE, col = adjustcolor("steelblue", alpha.f = 0.8),
+     main = "Output EEG Signal Distribution", xlab = "Output EEG signal (y)",
+     ylab = "Frequency")
+lines(density(df$y), col = "black", lwd = 2)
+rug(df$y, col = adjustcolor("black", alpha.f = 0.8))
+grid()
+dev.off()
+
+## ---------------------------------------------------------------------------------------------
+## 1.3 Correlation and scatter plots
+## ---------------------------------------------------------------------------------------------
+
+# Correlation matrix + heatmap
+correlation_columns <- c("X1", "X2", "X3", "X4", "y")
+correlation_df <- df[, correlation_columns]
+corr_matrix <- cor(correlation_df)
+print(corr_matrix)
+
+png(file.path(image_dir, "correlation_heatmap.png"), width = 800, height = 600, res = 100)
+n_vars <- ncol(corr_matrix)
+image(1:n_vars, 1:n_vars, t(corr_matrix[n_vars:1, ]),
+      col = colorRampPalette(c("blue", "white", "red"))(100),
+      axes = FALSE, xlab = "", ylab = "", main = "Correlation Heatmap between X signals and y")
+axis(1, at = 1:n_vars, labels = colnames(corr_matrix), las = 2)
+axis(2, at = 1:n_vars, labels = rev(rownames(corr_matrix)), las = 1)
+for (i in 1:n_vars) {
+  for (j in 1:n_vars) {
+    val <- corr_matrix[n_vars - i + 1, j]
+    text(j, i, sprintf("%.2f", val), cex = 0.9)
+  }
+}
+dev.off()
+
+# Scatter plot correlation of X signals with y (single overlaid plot)
+png(file.path(image_dir, "scatter_plot_correlation_x_vs_y.png"), width = 1600, height = 600, res = 100)
+plot(df$X1, df$y, col = "red", pch = 16,
+     xlab = "Input EEG signals (X)", ylab = "Output EEG signal (y)",
+     main = "Scatter plot correlation between X and y",
+     xlim = range(df[, x_columns]), ylim = range(df$y), cex.lab = 1.4, cex.main = 1.6)
+points(df$X2, df$y, col = "#00008B", pch = 16)
+points(df$X3, df$y, col = "#FF8C00", pch = 16)
+points(df$X4, df$y, col = "green", pch = 16)
+abline(h = 0, v = 0, col = "black", lwd = 1.5)
+grid(lty = "dashed", col = "#BDC3C7")
+legend("topright", legend = x_columns, col = colors4, pch = 16, cex = 1.2)
+dev.off()
+
+# Multi-panel scatter plots with regression line, one per X column
+distinct_colors <- c("#E41A1C", "#377EB8", "#4DAF4A", "#984EA3")
+
+png(file.path(image_dir, "Scatterplot_correlation_X_and_y.png"), width = 1400, height = 1200, res = 100)
+par(mfrow = c(2, 2), oma = c(3, 3, 4, 1))
+for (i in seq_along(x_columns)) {
+  col <- x_columns[i]
+  x_vals <- df[[col]]
+  y_vals <- df$y
+  plot(x_vals, y_vals, col = distinct_colors[i], pch = 16, cex = 0.9,
+       main = paste("Relationship:", col, "and Y"), xlab = "", ylab = "")
+  fit_line <- lm(y_vals ~ x_vals) 
+  abline(fit_line, col = distinct_colors[i], lty = 2, lwd = 2)
+  grid(lty = "dashed", col = "#BDC3C7")
+  abline(h = 0, v = 0, col = "black", lwd = 1)
+}
+mtext("Scatter Plot Correlation of X Signals with Y", outer = TRUE, cex = 1.4, line = 1.5)
+mtext("Input EEG Signals (X)", side = 1, outer = TRUE, line = 1, cex = 1.1)
+mtext("Output EEG Signal (Y)", side = 2, outer = TRUE, line = 1, cex = 1.1)
+dev.off()
+par(mfrow = c(1, 1))
+
+## ===========================================================================
+## Task 2: Regression - modelling the relationship between EEG signals
+## ===========================================================================
+polynomial_model_1 <- function(df) {
+  ones <- matrix(1, nrow = length(df$X1), ncol = 1)
+  cbind(
+    df$X4,
+    df$X1^2,
+    df$X1^3,
+    df$X2^4,
+    df$X1^4,
+    ones            # column of ones for the intercept
+  )
+}
+
+polynomial_model_2 <- function(df) {
+  ones <- matrix(1, nrow = length(df$X1), ncol = 1)
+  cbind(
+    df$X4,
+    df$X1^3,
+    df$X3^4,
+    ones
+  )
+}
+
+polynomial_model_3 <- function(df) {
+  ones <- matrix(1, nrow = length(df$X1), ncol = 1)
+  cbind(
+    df$X3^3,
+    df$X3^4,
+    ones
+  )
+}
+
+polynomial_model_4 <- function(df) {
+  ones <- matrix(1, nrow = length(df$X1), ncol = 1)
+  cbind(
+    df$X2,
+    df$X1^3,
+    df$X3^4,
+    ones
+  )
+}
+
+polynomial_model_5 <- function(df) {
+  ones <- matrix(1, nrow = length(df$X1), ncol = 1)
+  cbind(
+    df$X4,
+    df$X1^2,
+    df$X1^3,
+    df$X3^4,
+    ones
+  )
+}
+
+## ---------------------------------------------------------------------
+## 2.1 Theta Hat Calculation Function (Least Squares Estimation)
+## ---------------------------------------------------------------------
+theta_hat_func <- function(model, y) {
+  if (is.null(dim(y))) {
+    y <- matrix(y, ncol = 1)
+  }
+  solve(t(model) %*% model) %*% t(model) %*% y
+}
+
+## --- Model 1: design matrix, theta_hat, y_hat ---
+model_1 <- polynomial_model_1(df)
+model_1
+
+model_1_df <- data.frame(model_1)
+colnames(model_1_df) <- c("X4", "X1**2", "X1**3", "X2**4", "X1**4", "intercept")
+model_1_df
+
+model1_theta_hat <- theta_hat_func(model_1, df$y)
+cat("Model1 Theta hat:\n")
+print(matrix(model1_theta_hat, nrow = 6, ncol = 1))
+
+cat("Model1 Y hat:\n")
+y_hat_model1 <- model_1 %*% model1_theta_hat
+print(matrix(y_hat_model1[1:5], ncol = 1))
+
+## --- Model 2: design matrix, theta_hat, y_hat ---
+model_2 <- polynomial_model_2(df)
+model_2
+
+model_2_df <- data.frame(model_2)
+colnames(model_2_df) <- c("X4", "X1**3", "X3**4", "intercept")
+model_2_df
+
+model2_theta_hat <- theta_hat_func(model_2, df$y)
+cat("Model2 Theta hat:\n")
+print(matrix(model2_theta_hat, nrow = 4, ncol = 1))
+
+cat("Model2 Y hat:\n")
+y_hat_model2 <- model_2 %*% model2_theta_hat
+print(matrix(y_hat_model2[1:5], ncol = 1))
+
+## --- Model 3: design matrix, theta_hat, y_hat ---
+model_3 <- polynomial_model_3(df)
+model_3
+
+model_3_df <- data.frame(model_3)
+colnames(model_3_df) <- c("X3**3", "X3**4", "intercept")
+model_3_df
+
+model3_theta_hat <- theta_hat_func(model_3, df$y)
+cat("Model3 Theta hat:\n")
+print(matrix(model3_theta_hat, nrow = 3, ncol = 1))
+
+cat("Model3 Y hat:\n")
+y_hat_model3 <- model_3 %*% model3_theta_hat
+print(matrix(y_hat_model3[1:5], ncol = 1))
+
+## --- Model 4: design matrix, theta_hat, y_hat ---
+model_4 <- polynomial_model_4(df)
+model_4
+
+model_4_df <- data.frame(model_4)
+colnames(model_4_df) <- c("X2", "X1**3", "X3**4", "intercept")
+model_4_df
+
+model4_theta_hat <- theta_hat_func(model_4, df$y)
+cat("Model4 Theta hat:\n")
+print(matrix(model4_theta_hat, nrow = 4, ncol = 1))
+
+cat("Model4 Y hat:\n")
+y_hat_model4 <- model_4 %*% model4_theta_hat
+print(matrix(y_hat_model4[1:5], ncol = 1))
+
+## --- Model 5: design matrix, theta_hat, y_hat ---
+model_5 <- polynomial_model_5(df)
+model_5
+
+model_5_df <- data.frame(model_5)
+colnames(model_5_df) <- c("X4", "X1**2", "X1**3", "X3**4", "intercept")
+model_5_df
+
+model5_theta_hat <- theta_hat_func(model_5, df$y)
+cat("Model5 Theta hat:\n")
+print(matrix(model5_theta_hat, nrow = 5, ncol = 1))
+
+cat("Model5 Y hat:\n")
+y_hat_model5 <- model_5 %*% model5_theta_hat
+print(matrix(y_hat_model5[1:5], nrow = 5, ncol = 1))
+
+## ---------------------------------------------------------------------------------------------
+## 2.2 Residual Sum of Squares (RSS) Calculation Function
+## ---------------------------------------------------------------------------------------------
+calculate_rss <- function(y, y_hat_model) {
+  y_hat_model_flat <- as.vector(y_hat_model)
+  round(sum((y - y_hat_model_flat)^2), 5)
+}
+
+# RSS for each model
+rss_model1 <- calculate_rss(df$y, y_hat_model1)
+rss_model2 <- calculate_rss(df$y, y_hat_model2)
+rss_model3 <- calculate_rss(df$y, y_hat_model3)
+rss_model4 <- calculate_rss(df$y, y_hat_model4)
+rss_model5 <- calculate_rss(df$y, y_hat_model5)
+
+rss_vector <- c(rss_model1, rss_model2, rss_model3, rss_model4, rss_model5)
+print(rss_vector)
+
+# Table of RSS results
+rss_results_df <- data.frame(
+  Models = c("Model 1", "Model 2", "Model 3", "Model 4", "Model 5"),
+  RSS = rss_vector
+)
+rss_results_df
+
+## ---------------------------------------------------------------------------------------------
+## 2.3 Log-Likelihood Function
+## ---------------------------------------------------------------------------------------------
+calculate_log_likelihood <- function(n, rss, k) {
+  sigma_squared_hat <- rss / n
+  log_likelihood <- -(n / 2) * log(2 * pi) - (n / 2) * log(sigma_squared_hat) -
+    (1 / (2 * sigma_squared_hat)) * rss
+  log_likelihood
+}
+
+# Number of observations
+n <- length(df$y)
+
+# Number of parameters (k) for each model
+k1 <- ncol(model_1)  
+k2 <- ncol(model_2) 
+k3 <- ncol(model_3)
+k4 <- ncol(model_4)
+k5 <- ncol(model_5) 
+
+log_likelihood1 <- calculate_log_likelihood(n, rss_model1, k1)
+log_likelihood2 <- calculate_log_likelihood(n, rss_model2, k2)
+log_likelihood3 <- calculate_log_likelihood(n, rss_model3, k3)
+log_likelihood4 <- calculate_log_likelihood(n, rss_model4, k4)
+log_likelihood5 <- calculate_log_likelihood(n, rss_model5, k5)
+
+likelihood_df <- data.frame(
+  Model = c("Model 1", "Model 2", "Model 3", "Model 4", "Model 5"),
+  RSS = rss_vector,
+  k = c(k1, k2, k3, k4, k5),
+  Log.likelihood = c(log_likelihood1, log_likelihood2, log_likelihood3, log_likelihood4, log_likelihood5)
+)
+likelihood_df
+
+## ---------------------------------------------------------------------------------------------
+## 2.4 AIC and BIC Calculation
+## ---------------------------------------------------------------------------------------------
+calculate_aic <- function(n, log_likelihood, k) {
+  -2 * log_likelihood + 2 * k
+}
+
+calculate_bic <- function(n, log_likelihood, k) {
+  -2 * log_likelihood + k * log(n)
+}
+
+aic1 <- calculate_aic(n, log_likelihood1, k1)
+aic2 <- calculate_aic(n, log_likelihood2, k2)
+aic3 <- calculate_aic(n, log_likelihood3, k3)
+aic4 <- calculate_aic(n, log_likelihood4, k4)
+aic5 <- calculate_aic(n, log_likelihood5, k5)
+
+bic1 <- calculate_bic(n, log_likelihood1, k1)
+bic2 <- calculate_bic(n, log_likelihood2, k2)
+bic3 <- calculate_bic(n, log_likelihood3, k3)
+bic4 <- calculate_bic(n, log_likelihood4, k4)
+bic5 <- calculate_bic(n, log_likelihood5, k5)
+
+comparison_df <- data.frame(
+  Model = c("Model 1", "Model 2", "Model 3", "Model 4", "Model 5"),
+  RSS = rss_vector,
+  k = c(k1, k2, k3, k4, k5),
+  Log.likelihood = c(log_likelihood1, log_likelihood2, log_likelihood3, log_likelihood4, log_likelihood5),
+  AIC = c(aic1, aic2, aic3, aic4, aic5),
+  BIC = c(bic1, bic2, bic3, bic4, bic5)
+)
+print(comparison_df)
+
+## --- Identifying Preferred Models based on Information Criteria ---
+# NOTE (No Free Lunch theorem): the models identified here are the preferred
+# options specifically for this dataset/context, not globally "best".
+
+best_aic_model <- comparison_df[which.min(comparison_df$AIC), ]
+best_bic_model <- comparison_df[which.min(comparison_df$BIC), ]
+
+cat("Preferred Model based on AIC:\n")
+print(best_aic_model)
+
+cat("\nPreferred Model based on BIC:\n")
+print(best_bic_model)
+
+cat("\nSummary of all models:\n")
+print(comparison_df[order(comparison_df$AIC, comparison_df$BIC), ])
+
+## --- Comparing Actual vs. Predicted Y Values ---
+y_comparison_df <- data.frame(
+  y_actual = as.vector(df$y),
+  y_hat_model1 = as.vector(y_hat_model1),
+  y_hat_model2 = as.vector(y_hat_model2),
+  y_hat_model3 = as.vector(y_hat_model3),
+  y_hat_model4 = as.vector(y_hat_model4),
+  y_hat_model5 = as.vector(y_hat_model5)
+)
+
+head(y_comparison_df)
+
+## ---------------------------------------------------------------------
+## 2.5 Check the distribution of model prediction errors (residuals)
+## ---------------------------------------------------------------------
+plot_colors <- c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd")
+
+residuals_model1 <- df$y - as.vector(y_hat_model1)
+residuals_model2 <- df$y - as.vector(y_hat_model2)
+residuals_model3 <- df$y - as.vector(y_hat_model3)
+residuals_model4 <- df$y - as.vector(y_hat_model4)
+residuals_model5 <- df$y - as.vector(y_hat_model5)
+
+residuals_list <- list(
+  list(residuals = residuals_model1, name = "Model 1"),
+  list(residuals = residuals_model2, name = "Model 2"),
+  list(residuals = residuals_model3, name = "Model 3"),
+  list(residuals = residuals_model4, name = "Model 4"),
+  list(residuals = residuals_model5, name = "Model 5")
+)
+
+for (i in seq_along(residuals_list)) {
+  residuals  <- residuals_list[[i]]$residuals
+  model_name <- residuals_list[[i]]$name
+
+  filename <- file.path(image_dir, paste0(tolower(gsub(" ", "_", model_name)), "_residual_analysis.png"))
+  png(filename, width = 1800, height = 700, res = 100)
+  par(mfrow = c(1, 2))
+
+  # Histogram + density (KDE)
+  hist(residuals, breaks = 30, freq = FALSE, col = plot_colors[i], border = "black",
+       main = "Distribution of Residuals (Histogram + KDE)",
+       xlab = "Residuals", ylab = "Frequency / Density")
+  lines(density(residuals), col = "black", lwd = 2)
+  grid(lty = "dashed")
+
+  # Q-Q plot
+  qqnorm(residuals, main = "Q-Q Plot of Residuals",
+         col = plot_colors[i], pch = 16, cex = 0.9)
+  qqline(residuals, col = "black", lty = 1)
+  grid(lty = "dashed")
+
+  mtext(paste("Residual Analysis for", model_name), outer = TRUE, line = -1.5, cex = 1.3)
+  dev.off()
+}
+par(mfrow = c(1, 1))
+
+## ---------------------------------------------------------------------
+## Task 2.6: Model Selection Explanation
+## ---------------------------------------------------------------------
+# Based on RSS, AIC, BIC, and residual distribution, Model 2 is identified
+# as the preferred regression model among the five candidates for this
+# specific dataset (lowest AIC/BIC, RSS close to the best-performing
+# Model 5, and residuals closest to a Gaussian distribution).
+# As with the Python notebook, this conclusion is dataset-specific
+# (No Free Lunch theorem) and not a claim of universal superiority.
+
+## ---------------------------------------------------------------------
+## Task 2.7: Model Training, Prediction, and Confidence Intervals
+## ---------------------------------------------------------------------
+set.seed(42)
+n_total <- nrow(model_2)
+train_idx <- sample(seq_len(n_total), size = round(0.70 * n_total))
+
+X_train <- model_2[train_idx, ]
+X_test  <- model_2[-train_idx, ]
+y_train <- df$y[train_idx]
+y_test  <- df$y[-train_idx]
+
+time_train <- df$time[train_idx]
+time_test  <- df$time[-train_idx]
+
+cat(sprintf("Training set size: %d samples\n", nrow(X_train)))
+cat(sprintf("Testing set size: %d samples\n", nrow(X_test)))
+
+## ---------------------------------------------------------------------------------------------
+## --- 2.7.1 Re-estimating Model 2 Parameters on Training Data ---
+## ---------------------------------------------------------------------------------------------
+model2_theta_hat_train <- theta_hat_func(X_train, y_train)
+cat("Model 2 Theta hat (trained on training data):\n")
+print(matrix(model2_theta_hat_train, nrow = 4, ncol = 1))
+
+## ---------------------------------------------------------------------------------------------
+## --- 2.7.2 Predicting Y Hat for Training and Test Data ---
+## ---------------------------------------------------------------------------------------------
+y_hat_model2_train <- as.vector(X_train %*% model2_theta_hat_train)
+y_hat_model2_test  <- as.vector(X_test %*% model2_theta_hat_train)
+
+cat("First 5 predictions on test data:\n")
+print(y_hat_model2_test[1:5])
+
+---------------------------------------------------------------------------------------------
+## --- 2.7.3 Calculating 95% Confidence Intervals for Test Predictions ---
+---------------------------------------------------------------------------------------------
+n_train  <- nrow(X_train)
+k_params <- ncol(X_train)
+
+rss_train    <- calculate_rss(y_train, y_hat_model2_train)
+sigma2_train <- rss_train / (n_train - k_params)
+cov_theta_train <- sigma2_train * solve(t(X_train) %*% X_train)
+
+# Standard error of the model prediction, for both training and testing rows
+se_row <- function(X, cov_theta) {
+  sqrt(rowSums((X %*% cov_theta) * X))
+}
+se_train <- se_row(X_train, cov_theta_train)
+se_test  <- se_row(X_test,  cov_theta_train)
+
+t_critical <- qt(0.975, df = n_train - k_params)
+
+ci_halfwidth_train <- t_critical * se_train
+ci_halfwidth_test  <- t_critical * se_test
+
+ci_lower_test <- y_hat_model2_test - ci_halfwidth_test
+ci_upper_test <- y_hat_model2_test + ci_halfwidth_test
+
+# 1. Create a structured data frame for the first 5 test observations
+predictions_tbl <- data.frame(
+  `Predicted y-hat` = round(y_hat_model2_test[1:5], 4),
+  `95% CI lower`   = round(ci_lower_test[1:5], 4),
+  `95% CI upper`   = round(ci_upper_test[1:5], 4),
+  `± half-width`   = round(ci_halfwidth_test[1:5], 4),
+  check.names      = FALSE # Keeps the column names exactly as written
+)
+
+# 2. View the table in the console
+print(predictions_tbl, row.names = FALSE)
+
+## ---------------------------------------------------------------------
+## Model 2: Predictions with 95% Confidence Intervals vs. Testing Data
+## ---------------------------------------------------------------------
+order_idx  <- order(time_test)
+t_sorted   <- time_test[order_idx]
+y_test_sorted  <- y_test[order_idx]
+y_hat_sorted   <- y_hat_model2_test[order_idx]
+err_sorted     <- ci_halfwidth_test[order_idx]
+
+png(file.path(image_dir, "model2_predictions_ci_errorbars.png"), width = 1400, height = 600, res = 100)
+plot(t_sorted, y_hat_sorted, type = "n",
+     xlab = "Time", ylab = "y",
+     main = "Model 2: Predictions with 95% CI (Error Bars) vs. Testing Data",
+     ylim = range(c(y_hat_sorted - err_sorted, y_hat_sorted + err_sorted, y_test_sorted)))
+
+# shaded 95% CI band
+polygon(c(t_sorted, rev(t_sorted)),
+        c(y_hat_sorted - err_sorted, rev(y_hat_sorted + err_sorted)),
+        col = adjustcolor("#e75480", alpha.f = 0.25), border = NA)
+
+# prediction line + error bars
+lines(t_sorted, y_hat_sorted, col = "#d62728", lwd = 1.2)
+points(t_sorted, y_hat_sorted, col = "#d62728", pch = 16, cex = 0.6)
+arrows(t_sorted, y_hat_sorted - err_sorted, t_sorted, y_hat_sorted + err_sorted,
+       angle = 90, code = 3, length = 0.03, col = "black", lwd = 1.2)
+
+# actual testing data
+points(t_sorted, y_test_sorted, col = "black", pch = 16, cex = 0.7)
+
+legend("topright",
+       legend = c("95% CI (shaded)", "Model prediction +/- 95% CI", "Testing data samples"),
+       col = c(adjustcolor("#e75480", alpha.f = 0.5), "#d62728", "black"),
+       pch = c(15, 16, 16), pt.cex = c(2, 1, 1), cex = 0.9, bty = "n")
+dev.off()
+
+## --- Zoomed-in version of the same plot ---
+png(file.path(image_dir, "model2_predictions_ci_errorbars_zoomed.png"), width = 1400, height = 600, res = 100)
+x_zoom_start <- 0.31
+x_zoom_end   <- 0.36
+zoom_mask <- (t_sorted >= x_zoom_start) & (t_sorted <= x_zoom_end)
+
+y_zoom_min <- min(y_hat_sorted[zoom_mask] - err_sorted[zoom_mask])
+y_zoom_max <- max(y_hat_sorted[zoom_mask] + err_sorted[zoom_mask])
+y_margin   <- (y_zoom_max - y_zoom_min) * 0.3
+
+plot(t_sorted, y_hat_sorted, type = "n",
+     xlab = "Time", ylab = "y",
+     main = "Model 2: Predictions with 95% CI vs. Testing Data (Zoomed)",
+     xlim = c(x_zoom_start, x_zoom_end),
+     ylim = c(y_zoom_min - y_margin, y_zoom_max + y_margin))
+
+polygon(c(t_sorted, rev(t_sorted)),
+        c(y_hat_sorted - err_sorted, rev(y_hat_sorted + err_sorted)),
+        col = adjustcolor("#e75480", alpha.f = 0.25), border = NA)
+lines(t_sorted, y_hat_sorted, col = "#d62728", lwd = 1.2)
+points(t_sorted, y_hat_sorted, col = "#d62728", pch = 16, cex = 0.6)
+arrows(t_sorted, y_hat_sorted - err_sorted, t_sorted, y_hat_sorted + err_sorted,
+       angle = 90, code = 3, length = 0.03, col = "black", lwd = 1.2)
+points(t_sorted, y_test_sorted, col = "black", pch = 16, cex = 0.7)
+legend("topright",
+       legend = c("95% CI (shaded)", "Model prediction +/- 95% CI", "Testing data samples"),
+       col = c(adjustcolor("#e75480", alpha.f = 0.5), "#d62728", "black"),
+       pch = c(15, 16, 16), pt.cex = c(2, 1, 1), cex = 0.9, bty = "n")
+dev.off()
+
+## ===========================================================================
+## Task 3: Approximate Bayesian Computation (ABC)
+## ===========================================================================
+## ---------------------------------------------------------------------
+## 3.1 Select the 2 parameters with the largest absolute value
+## ---------------------------------------------------------------------
+theta_flat  <- as.vector(model2_theta_hat)
+param_names <- c("theta_X4", "theta_X1^3", "theta_X3^4", "theta_bias")
+
+ranked_idx <- order(-abs(theta_flat))   # descending order of |theta|
+top2_idx   <- ranked_idx[1:2]
+fixed_idx  <- ranked_idx[3:4]
+
+cat("Parameters ranked by |estimate| (largest first):\n")
+for (i in ranked_idx) {
+  cat(sprintf("  %12s = %.5f  (|value| = %.5f)\n", param_names[i], theta_flat[i], abs(theta_flat[i])))
+}
+
+cat(sprintf("\nSelected for ABC (largest 2 |value|): %s\n",
+            paste(param_names[top2_idx], collapse = ", ")))
+cat(sprintf("Fixed at their Task 2.1 estimate: %s\n",
+            paste(param_names[fixed_idx], collapse = ", ")))
+
+# Values that will be estimated via ABC
+theta_bias_hat <- model2_theta_hat[4, 1]   # bias/intercept - largest |value|
+theta_X4_hat   <- model2_theta_hat[1, 1]   # coefficient of X4 - 2nd largest |value|
+
+# Values that stay fixed at their Task 2.1 least-squares estimate
+theta_X1_3_fixed <- model2_theta_hat[2, 1]
+theta_X3_4_fixed <- model2_theta_hat[3, 1]
+
+cat(sprintf("theta_bias (to estimate) : %.5f\n", theta_bias_hat))
+cat(sprintf("theta_X4   (to estimate) : %.5f\n", theta_X4_hat))
+cat(sprintf("theta_X1^3 (fixed)       : %.5f\n", theta_X1_3_fixed))
+cat(sprintf("theta_X3^4 (fixed)       : %.5f\n", theta_X3_4_fixed))
+
+## ---------------------------------------------------------------------
+## 3.2 Uniform prior around the estimated values
+## ---------------------------------------------------------------------
+n_full <- nrow(model_2)
+k_full <- ncol(model_2)
+sigma2_full <- rss_model2 / (n_full - k_full)
+cov_theta_full <- sigma2_full * solve(t(model_2) %*% model_2)
+se_full <- sqrt(diag(cov_theta_full))
+
+se_bias <- se_full[4]
+se_X4   <- se_full[1]
+
+prior_width_multiplier <- 15   # prior range = theta_hat +/- multiplier * SE(theta_hat)
+
+theta_bias_range <- c(theta_bias_hat - prior_width_multiplier * se_bias,
+                       theta_bias_hat + prior_width_multiplier * se_bias)
+theta_X4_range   <- c(theta_X4_hat - prior_width_multiplier * se_X4,
+                       theta_X4_hat + prior_width_multiplier * se_X4)
+
+cat(sprintf("SE(theta_bias) = %.5f  ->  prior range = [%.4f, %.4f]\n",
+            se_bias, theta_bias_range[1], theta_bias_range[2]))
+cat(sprintf("SE(theta_X4)   = %.5f  ->  prior range = [%.4f, %.4f]\n",
+            se_X4, theta_X4_range[1], theta_X4_range[2]))
+
+## ---------------------------------------------------------------------
+## 3.3 Draw samples from the prior and perform rejection ABC
+## ---------------------------------------------------------------------
+set.seed(42)
+
+num_iterations <- 50000
+epsilon <- rss_model2 * 1.10
+
+theta_bias_prior <- runif(num_iterations, theta_bias_range[1], theta_bias_range[2])
+theta_X4_prior   <- runif(num_iterations, theta_X4_range[1],   theta_X4_range[2])
+
+accepted_theta_bias <- c()
+accepted_theta_X4   <- c()
+
+for (i in 1:num_iterations) {
+  candidate_theta <- matrix(c(
+    theta_X4_prior[i],
+    theta_X1_3_fixed,
+    theta_X3_4_fixed,
+    theta_bias_prior[i]
+  ), ncol = 1)
+
+  candidate_y_hat <- model_2 %*% candidate_theta
+  candidate_rss <- calculate_rss(df$y, candidate_y_hat)
+
+  if (candidate_rss < epsilon) {
+    accepted_theta_bias <- c(accepted_theta_bias, theta_bias_prior[i])
+    accepted_theta_X4   <- c(accepted_theta_X4, theta_X4_prior[i])
+  }
+}
+
+cat(sprintf("Epsilon (tolerance): %.4f  (original RSS = %s)\n", epsilon, rss_model2))
+cat(sprintf("Accepted %d out of %d samples (%.2f%%)\n",
+            length(accepted_theta_bias), num_iterations,
+            100 * length(accepted_theta_bias) / num_iterations))
+
+## ---------------------------------------------------------------------
+## 3.4 Joint and marginal posterior distribution
+## ---------------------------------------------------------------------
+png(file.path(image_dir, "abc_joint_marginal_posterior.png"), width = 1200, height = 1000, res = 100)
+
+scatter_color <- "#6A5ACD"
+hist_color    <- "#4682B4"
+
+layout(matrix(c(2, 0, 1, 3), nrow = 2, byrow = TRUE),
+       widths = c(3, 1), heights = c(1, 3))
+
+# Joint posterior scatter (bottom-left panel)
+par(mar = c(4, 4, 0.5, 0.5))
+plot(accepted_theta_X4, accepted_theta_bias, pch = 16, cex = 0.6,
+     col = adjustcolor(scatter_color, alpha.f = 0.6),
+     xlab = expression(theta[X4]), ylab = expression(theta[bias]))
+abline(v = theta_X4_hat, col = "#FF4500", lty = 2, lwd = 1.5)
+abline(h = theta_bias_hat, col = "#8B0000", lty = 2, lwd = 1.5)
+legend("topleft",
+       legend = c("Accepted samples", "LS Estimate theta_X4 (Task 2.1)", "LS Estimate theta_bias (Task 2.1)"),
+       col = c(scatter_color, "#FF4500", "#8B0000"), pch = c(16, NA, NA), lty = c(NA, 2, 2),
+       cex = 0.7, bty = "n")
+
+# Marginal posterior of theta_X4 (top panel)
+par(mar = c(0.5, 4, 2, 0.5))
+hist(accepted_theta_X4, breaks = 50, col = hist_color, border = "black",
+     main = "", xlab = "", ylab = "Frequency", xaxt = "n")
+abline(v = theta_X4_hat, col = "#FF4500", lty = 2, lwd = 1.5)
+
+# Marginal posterior of theta_bias (right panel, horizontal)
+par(mar = c(4, 0.5, 0.5, 2))
+hist_bias <- hist(accepted_theta_bias, breaks = 50, plot = FALSE)
+barplot(hist_bias$counts, horiz = TRUE, space = 0, col = hist_color, border = "black",
+        xlab = "Frequency")
+
+mtext("Joint and Marginal Posterior Distribution (Rejection ABC) - Model 2",
+      outer = TRUE, line = -1.5, cex = 1.2, font = 2)
+dev.off()
+layout(1)
+
+## --- Posterior summary table ---
+posterior_summary_df <- data.frame(
+  `Parameter` = c("$\\theta_{\\text{bias}}$", "$\\theta_{1}$"),
+  `Posterior Mean` = round(c(mean(accepted_theta_bias), mean(accepted_theta_X4)), 5),
+  `Posterior Std`  = round(c(sd(accepted_theta_bias), sd(accepted_theta_X4)), 5),
+  `95% Lower Range` = round(c(quantile(accepted_theta_bias, 0.025), quantile(accepted_theta_X4, 0.025)), 5),
+  `95% Upper Range` = round(c(quantile(accepted_theta_bias, 0.975), quantile(accepted_theta_X4, 0.975)), 5),
+  `LS Estimate (Task 2.1)` = round(c(theta_bias_hat, theta_X4_hat), 5),
+  check.names = FALSE
+)
+
+View(posterior_summary_df)
+
