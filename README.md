@@ -116,5 +116,4 @@ The script will read the CSVs from `datasets/`, generate all plots into `images/
 
 ## References
 
-- Original analysis: `stats_assignment__1_.ipynb` (Python/Jupyter)
 - Model selection follows the No Free Lunch theorem — the chosen model is optimal for this specific dataset only.
