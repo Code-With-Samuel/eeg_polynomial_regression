@@ -1,6 +1,6 @@
 # EEG Polynomial Regression Analysis
 
-An R-based statistical analysis of EEG (electroencephalography) signal data, reproducing a Python/Jupyter notebook (`stats_assignment__1_.ipynb`) step by step. The project covers exploratory data analysis, polynomial regression modelling, and Approximate Bayesian Computation (ABC).
+This is an R-based statistical analysis of EEG (electroencephalography) signal data. The project covers exploratory data analysis, polynomial regression modelling, and Approximate Bayesian Computation (ABC).
 
 ## Project Structure
 
